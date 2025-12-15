@@ -29,6 +29,14 @@ async function run() {
     const db = client.db("contest_hub_db");
     const contestsCollection = db.collection("contests");
 
+    //contest apis
+    app.post("/contests", async (req, res) => {
+      const newContest = req.body;
+    //   console.log(newContest)
+      const result = await contestsCollection.insertOne(newContest);
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
