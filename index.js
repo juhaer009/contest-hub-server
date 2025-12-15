@@ -32,8 +32,20 @@ async function run() {
     //contest apis
     app.post("/contests", async (req, res) => {
       const newContest = req.body;
-    //   console.log(newContest)
+      newContest.status = "pending";
+      //   console.log(newContest)
       const result = await contestsCollection.insertOne(newContest);
+      res.send(result);
+    });
+
+    app.get("/contests", async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.creatorMail = email;
+      }
+      const cursor = contestsCollection.find(query);
+      const result = await cursor.toArray();
       res.send(result);
     });
 
