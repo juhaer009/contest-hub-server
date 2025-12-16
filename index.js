@@ -49,6 +49,21 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/allcontests", async (req, res) => {
+      const query = { status: "confirmed" };
+      const cursor = contestsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/contests/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await contestsCollection.findOne(query);
+      res.send(result);
+    });
+
+
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
