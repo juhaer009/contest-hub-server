@@ -112,7 +112,11 @@ async function run() {
       res.send({ role: user?.role || "user" });
     });
 
-    
+    app.get("/users", async (req, res) => {
+      const cursor = usersCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
