@@ -28,6 +28,7 @@ async function run() {
 
     const db = client.db("contest_hub_db");
     const contestsCollection = db.collection("contests");
+    const usersCollection = db.collection("users");
 
     //contest apis
     app.post("/contests", async (req, res) => {
@@ -83,13 +84,35 @@ async function run() {
       res.send(result);
     });
 
-
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.deleteOne(query);
       res.send(result);
     });
+
+    // user apis
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      user.role = "user";
+      user.createdAt = new Date();
+      const email = user.email;
+      const existingUser = await usersCollection.findOne({ email });
+      if (existingUser) {
+        return res.send({ message: "Existing User" });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.get("/users/:email/role", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      res.send({ role: user?.role || "user" });
+    });
+
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
