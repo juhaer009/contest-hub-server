@@ -63,6 +63,26 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/contests/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedContest = req.body;
+      const query = { _id: new ObjectId(id) };
+      const update = {
+        $set: {
+          name: updatedContest.name,
+          image: updatedContest.image,
+          description: updatedContest.description,
+          price: updatedContest.price,
+          prizeMoney: updatedContest.prizeMoney,
+          taskInstruction: updatedContest.taskInstruction,
+          contestType: updatedContest.contestType,
+          deadline: updatedContest.deadline,
+        },
+      };
+      const result = await contestsCollection.updateOne(query, update);
+      res.send(result);
+    });
+
 
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
