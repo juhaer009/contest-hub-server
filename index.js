@@ -84,6 +84,19 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/contests/:id/status", async (req, res) => {
+      const id = req.params.id;
+      const statusInfo = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: statusInfo.status,
+        },
+      };
+      const result = await contestsCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
