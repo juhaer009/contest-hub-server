@@ -6,9 +6,32 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const port = process.env.PORT || 3000;
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 //middleware
 app.use(express.json());
 app.use(cors());
+
+const verifyFBToken = async (req, res, next) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized Access" });
+  }
+  try {
+    const idToken = token.split(" ")[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.decoded_email = decoded.email;
+    next();
+  } catch (err) {
+    res.status(401).send({ message: "Unauthorized Access" });
+  }
+};
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@simple-crud-server.hfigrlp.mongodb.net/?appName=simple-crud-server`;
 
@@ -39,11 +62,14 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/contests", async (req, res) => {
+    app.get("/contests", verifyFBToken, async (req, res) => {
       const email = req.query.email;
       const query = {};
       if (email) {
         query.creatorMail = email;
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
       }
       const cursor = contestsCollection.find(query);
       const result = await cursor.toArray();
