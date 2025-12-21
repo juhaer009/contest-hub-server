@@ -3,6 +3,7 @@ const cors = require("cors");
 const app = express();
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 const port = process.env.PORT || 3000;
 
@@ -53,6 +54,16 @@ async function run() {
     const contestsCollection = db.collection("contests");
     const usersCollection = db.collection("users");
 
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded_email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     //contest apis
     app.post("/contests", async (req, res) => {
       const newContest = req.body;
@@ -83,7 +94,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/contests/:id", async (req, res) => {
+    app.get("/contests/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.findOne(query);
@@ -110,7 +121,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/contests/:id/status", async (req, res) => {
+    app.patch("/contests/:id/status", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const statusInfo = req.body;
       const query = { _id: new ObjectId(id) };
@@ -144,7 +155,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users/:email/role", async (req, res) => {
+    app.get("/users/:email/role", verifyFBToken, async (req, res) => {
       const email = req.params.email;
       const query = { email };
       const user = await usersCollection.findOne(query);
@@ -157,7 +168,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/users/:id", async (req, res) => {
+    app.patch("/users/:id", verifyFBToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const roleInfo = req.body;
       const query = { _id: new ObjectId(id) };
@@ -168,6 +179,34 @@ async function run() {
       };
       const result = await usersCollection.updateOne(query, updatedDoc);
       res.send(result);
+    });
+
+    // payment related apis
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+      const amount = parseInt(paymentInfo.price) * 100;
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "USD",
+              unit_amount: amount,
+              product_data: {
+                name: paymentInfo.contestName,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        metadata: {
+          contestId: paymentInfo.contestId,
+        },
+        success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-canceled`,
+      });
+      console.log(session);
+      res.send({ url: session.url });
     });
 
     // Send a ping to confirm a successful connection
