@@ -256,6 +256,20 @@ async function run() {
       res.send({ success: false });
     });
 
+    app.get("/my-participated-contests/payment", async(req,res)=>{
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.customerEmail = email;
+        // if (email !== req.decoded_email) {
+        //   return res.status(403).send({ message: "Forbidden Access" });
+        // }
+      }
+      const cursor = paymentCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
     app.get("/payment/:contestId", async (req, res) => {
       const contestId = req.params.contestId;
       const query = { contestId };
