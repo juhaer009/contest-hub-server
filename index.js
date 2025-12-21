@@ -53,6 +53,7 @@ async function run() {
     const db = client.db("contest_hub_db");
     const contestsCollection = db.collection("contests");
     const usersCollection = db.collection("users");
+    const paymentCollection = db.collection("payments");
 
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded_email;
@@ -198,15 +199,68 @@ async function run() {
             quantity: 1,
           },
         ],
+        customer_email: paymentInfo.customer_email,
         mode: "payment",
         metadata: {
           contestId: paymentInfo.contestId,
+          contestName: paymentInfo.contestName,
+          contestDeadline: paymentInfo.contestDeadline,
         },
         success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-canceled`,
       });
       console.log(session);
       res.send({ url: session.url });
+    });
+
+    app.patch("/payment-seccess", async (req, res) => {
+      const sessionId = req.query.session_id;
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      // console.log("session retrieved", session);
+      const transactionId = session.payment_intent;
+      const query = { transactionId: transactionId };
+      const paymentExist = await paymentCollection.findOne(query);
+      if (paymentExist) {
+        return res.send({ message: "payment already exists" });
+      }
+      if (session.payment_status === "paid") {
+        const id = session.metadata.contestId;
+        const query = { _id: new ObjectId(id) };
+        const update = {
+          $set: {
+            paymentStatus: "paid",
+          },
+        };
+        const result = await contestsCollection.updateOne(query, update);
+        const payment = {
+          amount: session.amount_total / 100,
+          currency: session.currency,
+          customerEmail: session.customer_email,
+          contestId: session.metadata.contestId,
+          contestName: session.metadata.contestName,
+          contestDeadline: session.metadata.contestDeadline,
+          transactionId: session.payment_intent,
+          paymentStatus: session.payment_status,
+          paidAt: new Date(),
+        };
+        if (session.payment_status === "paid") {
+          const resultPayment = await paymentCollection.insertOne(payment);
+          return res.send({
+            success: true,
+            modifyParcel: result,
+            paymentInfo: resultPayment,
+          });
+        }
+      }
+
+      res.send({ success: false });
+    });
+
+    app.get("/payment/:contestId", async (req, res) => {
+      const contestId = req.params.contestId;
+      const query = { contestId };
+      const result = await paymentCollection.findOne(query);
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
