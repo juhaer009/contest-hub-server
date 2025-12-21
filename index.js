@@ -182,6 +182,24 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/users/profile/:email", verifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      const updateProfile = req.body;
+      const query = { email };
+      const updatedDoc = {
+        $set: {
+          displayName: updateProfile.displayName,
+          photoURL: updateProfile.photoURL,
+          address: updateProfile.address,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+
     // payment related apis
     app.post("/create-checkout-session", async (req, res) => {
       const paymentInfo = req.body;
@@ -256,7 +274,7 @@ async function run() {
       res.send({ success: false });
     });
 
-    app.get("/my-participated-contests/payment", async(req,res)=>{
+    app.get("/my-participated-contests/payment", async (req, res) => {
       const email = req.query.email;
       const query = {};
       if (email) {
@@ -268,7 +286,7 @@ async function run() {
       const cursor = paymentCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
-    })
+    });
 
     app.get("/payment/:contestId", async (req, res) => {
       const contestId = req.params.contestId;
