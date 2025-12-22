@@ -54,6 +54,36 @@ async function run() {
     const contestsCollection = db.collection("contests");
     const usersCollection = db.collection("users");
     const paymentCollection = db.collection("payments");
+    const taskCollection = db.collection("tasks");
+
+    const syncPaymentCountToContests = async () => {
+      const paymentStats = await paymentCollection
+        .aggregate([
+          {
+            $group: {
+              _id: "$contestId",
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .toArray();
+
+      if (!paymentStats.length) return;
+
+      const bulkOps = paymentStats.map((stat) => ({
+        updateOne: {
+          filter: { _id: new ObjectId(stat._id) },
+          update: { $set: { paymentCount: stat.count } },
+        },
+      }));
+
+      await contestsCollection.bulkWrite(bulkOps);
+
+      await contestsCollection.updateMany(
+        { paymentCount: { $exists: false } },
+        { $set: { paymentCount: 0 } }
+      );
+    };
 
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded_email;
@@ -99,6 +129,12 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.get("/popular-contest", async (req, res) => {
+      const cursor = contestsCollection.find();
+      const result = await cursor.sort({ paymentCount: -1 }).limit(5).toArray();
       res.send(result);
     });
 
@@ -227,7 +263,7 @@ async function run() {
         success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-canceled`,
       });
-      console.log(session);
+      // console.log(session);
       res.send({ url: session.url });
     });
 
@@ -261,8 +297,10 @@ async function run() {
           paymentStatus: session.payment_status,
           paidAt: new Date(),
         };
+
         if (session.payment_status === "paid") {
           const resultPayment = await paymentCollection.insertOne(payment);
+          await syncPaymentCountToContests();
           return res.send({
             success: true,
             modifyParcel: result,
@@ -288,18 +326,54 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/payment/:contestId", async (req, res) => {
-      const contestId = req.params.contestId;
-      const query = { contestId };
+    app.get("/payment/:id", async (req, res) => {
+      const id = req.params.id;
+      // console.log(contestId);
+      const query = { contestId: id };
       const result = await paymentCollection.findOne(query);
+      // console.log(result);
+      res.send(result);
+    });
+
+    // task related apis
+    app.post("/task-submission", verifyFBToken, async (req, res) => {
+      const taskInfo = req.body;
+      const result = await taskCollection.insertOne(taskInfo);
+      res.send(result);
+    });
+
+    app.get("/tasks", verifyFBToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.creatorMail = email;
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+      }
+      const cursor = taskCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.patch("/tasks/:id", verifyFBToken, async (req, res) => {
+      const id = req.params.id;
+      const taskInfo = req.body;
+      const query = { contestId: id };
+      const updatedDoc = {
+        $set: {
+          winnerStatus: taskInfo.winnerStatus,
+        },
+      };
+      const result = await taskCollection.updateMany(query, updatedDoc);
       res.send(result);
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
