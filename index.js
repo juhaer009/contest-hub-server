@@ -9,15 +9,43 @@ const port = process.env.PORT || 3000;
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+// const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+
+// const serviceAccount = require("./firebase-admin-key.json");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
 //middleware
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://contest-hub-juhaer009.netlify.app",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (like mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
-app.use(cors());
 
 const verifyFBToken = async (req, res, next) => {
   const token = req.headers.authorization;
@@ -48,7 +76,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("contest_hub_db");
     const contestsCollection = db.collection("contests");
@@ -317,25 +345,21 @@ async function run() {
       res.send({ success: false });
     });
 
-    app.get(
-      "/my-participated-contests/payment",
-      verifyFBToken,
-      async (req, res) => {
-        const email = req.query.email;
-        const query = {};
-        if (email) {
-          query.customerEmail = email;
-          // if (email !== req.decoded_email) {
-          //   return res.status(403).send({ message: "Forbidden Access" });
-          // }
-        }
-        const cursor = paymentCollection.find(query);
-        const result = await cursor.toArray();
-        res.send(result);
+    app.get("/my-participated-contests/payment", async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.customerEmail = email;
+        // if (email !== req.decoded_email) {
+        //   return res.status(403).send({ message: "Forbidden Access" });
+        // }
       }
-    );
+      const cursor = paymentCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
-    app.get("/payment/:id", verifyFBToken, async (req, res) => {
+    app.get("/payment/:id", async (req, res) => {
       const id = req.params.id;
       // console.log(contestId);
       const query = { contestId: id };
