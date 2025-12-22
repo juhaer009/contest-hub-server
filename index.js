@@ -96,7 +96,7 @@ async function run() {
     };
 
     //contest apis
-    app.post("/contests", async (req, res) => {
+    app.post("/contests", verifyFBToken, async (req, res) => {
       const newContest = req.body;
       newContest.status = "pending";
       //   console.log(newContest)
@@ -138,7 +138,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/contests/:id", async (req, res) => {
+    app.patch("/contests/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const updatedContest = req.body;
       const query = { _id: new ObjectId(id) };
@@ -158,20 +158,25 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/contests/:id/status", verifyFBToken, async (req, res) => {
-      const id = req.params.id;
-      const statusInfo = req.body;
-      const query = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          status: statusInfo.status,
-        },
-      };
-      const result = await contestsCollection.updateOne(query, updatedDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/contests/:id/status",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const statusInfo = req.body;
+        const query = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            status: statusInfo.status,
+          },
+        };
+        const result = await contestsCollection.updateOne(query, updatedDoc);
+        res.send(result);
+      }
+    );
 
-    app.delete("/contests/:id", async (req, res) => {
+    app.delete("/contests/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.deleteOne(query);
@@ -312,21 +317,25 @@ async function run() {
       res.send({ success: false });
     });
 
-    app.get("/my-participated-contests/payment", async (req, res) => {
-      const email = req.query.email;
-      const query = {};
-      if (email) {
-        query.customerEmail = email;
-        // if (email !== req.decoded_email) {
-        //   return res.status(403).send({ message: "Forbidden Access" });
-        // }
+    app.get(
+      "/my-participated-contests/payment",
+      verifyFBToken,
+      async (req, res) => {
+        const email = req.query.email;
+        const query = {};
+        if (email) {
+          query.customerEmail = email;
+          // if (email !== req.decoded_email) {
+          //   return res.status(403).send({ message: "Forbidden Access" });
+          // }
+        }
+        const cursor = paymentCollection.find(query);
+        const result = await cursor.toArray();
+        res.send(result);
       }
-      const cursor = paymentCollection.find(query);
-      const result = await cursor.toArray();
-      res.send(result);
-    });
+    );
 
-    app.get("/payment/:id", async (req, res) => {
+    app.get("/payment/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       // console.log(contestId);
       const query = { contestId: id };
